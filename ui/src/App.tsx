@@ -9,6 +9,19 @@ interface PlateBox {
   confidence: number;
 }
 
+interface PlateCorner {
+  x: number;
+  y: number;
+  confidence: number | null;
+}
+
+interface PlatePreview {
+  image: string;
+  text: string;
+  aligned: boolean;
+  corners: PlateCorner[];
+}
+
 function ImageIcon() {
   return (
     <svg width="38" height="38" viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -21,29 +34,35 @@ function ImageIcon() {
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ text: string; kind: 'status' | 'error' } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [boxes, setBoxes] = useState<PlateBox[]>([]);
+  const [plates, setPlates] = useState<PlatePreview[]>([]);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const request = useRef<AbortController | null>(null);
+  const uploadInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (preview) return () => URL.revokeObjectURL(preview);
   }, [preview]);
   useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => {
+    if (!notification) return;
+    const timer = window.setTimeout(() => setNotification(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [notification]);
 
   function chooseFile(next: File | undefined) {
     if (!next) return;
     const message = validateImage(next);
-    setError(message);
+    setNotification(message ? { text: message, kind: 'error' } : null);
     if (message) return;
     request.current?.abort();
     setLoading(false);
     setBoxes([]);
+    setPlates([]);
     setImageSize(null);
-    setStatus(null);
     setFile(next);
     setPreview(URL.createObjectURL(next));
   }
@@ -53,8 +72,9 @@ export default function App() {
     const controller = new AbortController();
     request.current = controller;
     setLoading(true);
-    setError(null);
-    setStatus('Đang phát hiện biển số...');
+    setNotification({ text: 'Đang phát hiện biển số...', kind: 'status' });
+    setBoxes([]);
+    setPlates([]);
     const body = new FormData();
     body.append('file', file);
     try {
@@ -69,17 +89,39 @@ export default function App() {
         !data.boxes.every(
           (box: PlateBox) =>
             box && ['x1', 'y1', 'x2', 'y2', 'confidence'].every((key) => Number.isFinite(box[key as keyof PlateBox])),
+        ) ||
+        !('plates' in data) ||
+        !Array.isArray(data.plates) ||
+        data.plates.length !== data.boxes.length ||
+        !data.plates.every(
+          (plate: PlatePreview) =>
+            plate &&
+            typeof plate.image === 'string' &&
+            typeof plate.text === 'string' &&
+            typeof plate.aligned === 'boolean' &&
+            Array.isArray(plate.corners) &&
+            (plate.corners.length === 0 || plate.corners.length === 4) &&
+            plate.corners.every(
+              (corner) =>
+                corner &&
+                Number.isFinite(corner.x) &&
+                Number.isFinite(corner.y) &&
+                (corner.confidence === null || Number.isFinite(corner.confidence)),
+            ),
         )
       ) {
         throw new Error('Invalid detection response');
       }
       if (controller.signal.aborted) return;
       setBoxes(data.boxes);
-      setStatus(data.boxes.length ? `Đã phát hiện ${data.boxes.length} biển số.` : 'Không tìm thấy biển số.');
+      setPlates(data.plates);
+      setNotification({
+        text: data.boxes.length ? `Đã phát hiện ${data.boxes.length} biển số.` : 'Không tìm thấy biển số.',
+        kind: 'status',
+      });
     } catch {
       if (!controller.signal.aborted) {
-        setStatus(null);
-        setError('Không thể phát hiện biển số. Vui lòng thử lại.');
+        setNotification({ text: 'Không thể phát hiện biển số. Vui lòng thử lại.', kind: 'error' });
       }
     } finally {
       if (request.current === controller) {
@@ -93,12 +135,6 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <span className="app-grid" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-            <i />
-          </span>
           <span className="brand-icon" aria-hidden="true">
             <svg viewBox="0 0 36 36" fill="none">
               <path
@@ -127,102 +163,132 @@ export default function App() {
           <span aria-hidden="true">›</span>
           <span>License Plate Recognition</span>
         </nav>
-        <section className="upload-card" aria-labelledby="upload-title">
-          <h1 id="upload-title">Tải hình ảnh</h1>
-          <div className="card-body">
-            <label
-              className={`dropzone${preview ? ' has-preview' : ''}${dragging ? ' dragging' : ''}`}
-              onDragOver={(event) => {
-                event.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault();
-                setDragging(false);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                setDragging(false);
-                chooseFile(event.dataTransfer.files[0]);
-              }}
-            >
-              <input
-                aria-label="Chọn ảnh"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(event) => {
-                  chooseFile(event.target.files?.[0]);
-                  event.target.value = '';
-                }}
-              />
-              {preview ? (
-                <>
-                  <span className="preview-frame">
-                    <img
-                      src={preview}
-                      alt="Ảnh đã chọn"
-                      className="preview"
-                      onLoad={(event) =>
-                        setImageSize({
-                          width: event.currentTarget.naturalWidth,
-                          height: event.currentTarget.naturalHeight,
-                        })
-                      }
-                    />
-                    {imageSize && boxes.length ? (
-                      <svg
-                        className="plate-boxes"
-                        viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}
-                        preserveAspectRatio="xMidYMid meet"
-                        aria-hidden="true"
-                      >
-                        {boxes.map((box, index) => (
-                          <rect key={index} x={box.x1} y={box.y1} width={box.x2 - box.x1} height={box.y2 - box.y1} />
-                        ))}
-                      </svg>
-                    ) : null}
-                  </span>
-                  <span className="preview-actions">
-                    <small>{file?.name}</small>
-                    <span className="change-photo">Chọn ảnh khác</span>
-                  </span>
-                </>
-              ) : (
-                <>
-                  <ImageIcon />
-                  <span className="drop-caption">
-                    Kéo ảnh vào đây hoặc <em>chọn tệp</em>
-                  </span>
-                  <small>JPG, PNG hoặc WEBP · Tối đa 10 MB</small>
-                </>
-              )}
-            </label>
-            {file ? (
-              <button type="button" className="detect-button" onClick={detectPlates} disabled={loading}>
-                Phát hiện biển số
+        <div className="workspace">
+          <section className="upload-card" aria-labelledby="upload-title">
+            <div className="upload-header">
+              <h1 id="upload-title">Tải hình ảnh</h1>
+              <button type="button" className="upload-button" onClick={() => uploadInput.current?.click()}>
+                {file ? 'Chọn ảnh khác' : 'Tải ảnh'}
               </button>
-            ) : null}
-            {status ? (
-              <p className="detection-status" role="status">
-                {status}
-              </p>
-            ) : null}
-            {error ? (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            ) : null}
-          </div>
-          <div className="result-area" aria-live="polite">
-            <h2>Văn bản nhận diện</h2>
-            <div className="result-text">
-              {file
-                ? 'Ảnh đã sẵn sàng. Chưa có văn bản nhận diện — cần kết nối dịch vụ OCR để hiển thị kết quả.'
-                : 'Văn bản nhận diện từ ảnh sẽ hiển thị tại đây.'}
             </div>
-          </div>
-        </section>
+            <div className="card-body">
+              <label
+                className={`dropzone${preview ? ' has-preview' : ''}${dragging ? ' dragging' : ''}`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  setDragging(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDragging(false);
+                  chooseFile(event.dataTransfer.files[0]);
+                }}
+              >
+                <input
+                  ref={uploadInput}
+                  aria-label="Chọn ảnh"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => {
+                    chooseFile(event.target.files?.[0]);
+                    event.target.value = '';
+                  }}
+                />
+                {preview ? (
+                  <>
+                    <span className="preview-frame">
+                      <img
+                        src={preview}
+                        alt="Ảnh đã chọn"
+                        className="preview"
+                        onLoad={(event) =>
+                          setImageSize({
+                            width: event.currentTarget.naturalWidth,
+                            height: event.currentTarget.naturalHeight,
+                          })
+                        }
+                      />
+                      {imageSize && boxes.length ? (
+                        <svg
+                          className="plate-boxes"
+                          viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}
+                          preserveAspectRatio="xMidYMid meet"
+                          aria-hidden="true"
+                        >
+                          {plates.map((plate, index) =>
+                            plate.aligned && plate.corners.length === 4 ? (
+                              <polygon
+                                key={index}
+                                points={plate.corners.map((corner) => `${corner.x},${corner.y}`).join(' ')}
+                              />
+                            ) : null,
+                          )}
+                        </svg>
+                      ) : null}
+                    </span>
+                    <span className="preview-actions">
+                      <small>{file?.name}</small>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon />
+                    <span className="drop-caption">
+                      Kéo ảnh vào đây hoặc <em>chọn tệp</em>
+                    </span>
+                    <small>JPG, PNG hoặc WEBP · Tối đa 10 MB</small>
+                  </>
+                )}
+              </label>
+              {file ? (
+                <button type="button" className="detect-button" onClick={detectPlates} disabled={loading}>
+                  Phát hiện biển số
+                </button>
+              ) : null}
+            </div>
+          </section>
+          <aside className="plate-sidebar" aria-labelledby="plates-title">
+            <h2 id="plates-title">Ảnh biển số</h2>
+            {plates.length ? (
+              <ol className="plate-list">
+                {plates.map((plate, index) => (
+                  <li key={index}>
+                    <span>Biển số {index + 1}</span>
+                    <div className="plate-result">
+                      <div className="plate-image">
+                        <img
+                          src={`data:image/png;base64,${plate.image}`}
+                          alt={`Biển số ${index + 1} ${plate.aligned ? 'đã' : 'chưa'} căn chỉnh`}
+                        />
+                        {!plate.aligned ? <p className="alignment-note">Chưa căn chỉnh được</p> : null}
+                      </div>
+                      <div className="recognition-copy">
+                        <p className={plate.text ? 'recognized-text' : undefined}>
+                          {plate.text || 'Không đọc được ký tự.'}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="plate-placeholder">Ảnh biển số sau khi phát hiện sẽ hiển thị ở đây.</p>
+            )}
+          </aside>
+        </div>
       </main>
+      {notification ? (
+        <div
+          className={`snackbar${notification.kind === 'error' ? ' error' : ''}`}
+          role={notification.kind === 'error' ? 'alert' : 'status'}
+        >
+          {notification.text}
+        </div>
+      ) : null}
     </div>
   );
 }

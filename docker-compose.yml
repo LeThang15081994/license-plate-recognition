@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    image: ${IMAGE:-license-plate-recognition:local}
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - ${MODELS_DIR:-./models}:/app/models:ro
+    environment:
+      UI_URL: ${UI_URL:-http://localhost}
+      UI_PORT: ${PORT:-8000}
+      DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.7}
+    logging:
+      driver: json-file
+      options:
+        max-size: "3m"
+        max-file: "3"

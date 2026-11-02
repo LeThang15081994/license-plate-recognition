@@ -1,5 +1,9 @@
-# Model weights — downloaded from Hugging Face; individual files exceed
-# GitHub's 100 MB limit and are not versioned here.
-# See models/v11/README.md for download instructions.
+# Downloaded model weights are not versioned here; some exceed
+# GitHub's 100 MB file limit.
+# See backend/README.md for keypoint checkpoint download instructions.
 models/v11/*.pt
 models/v11/*.onnx
+models/keypoint/*.pt
+models/recognition/*.onnx
+models/recognition/*.yaml
+.env
