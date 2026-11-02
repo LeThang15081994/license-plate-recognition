@@ -26,6 +26,7 @@ UI_URL = os.getenv("UI_URL", "http://127.0.0.1").rstrip("/")
 UI_PORT = int(os.getenv("UI_PORT", "5173"))
 ALLOWED_ORIGINS = {
     f"http://{BACKEND_HOST}:{BACKEND_PORT}".encode(),
+    UI_URL.encode(),
     f"{UI_URL}:{UI_PORT}".encode(),
 }
 MAX_FILE_SIZE = 10 * 1024 * 1024

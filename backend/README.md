@@ -65,7 +65,7 @@ Giới hạn đã quan sát: ảnh xe chứa biển `SB 2642` cho một biển c
 
 Model OCR đã được kiểm tra với một ảnh chứa biển một dòng `SB 2642` và trả `SB2642`. Chưa xác minh độ chính xác với biển hai dòng/biển Việt Nam; cần thử trên ảnh có nhãn trước khi dùng kết quả tự động.
 
-Ảnh hỏng hoặc nội dung không khớp kiểu tệp trả HTTP 400; quá giới hạn trả 413; kiểu tệp không hỗ trợ trả 415; `Origin` ngoài địa chỉ backend và `UI_URL:UI_PORT` trả 403. Chạy kiểm tra bằng `.venv\Scripts\python -m unittest -v test_app`. Giữ `BACKEND_HOST` trên loopback khi chạy cục bộ; nếu mở ra mạng công cộng, cần lớp bảo vệ truy cập riêng.
+Ảnh hỏng hoặc nội dung không khớp kiểu tệp trả HTTP 400; quá giới hạn trả 413; kiểu tệp không hỗ trợ trả 415; `Origin` ngoài địa chỉ backend, `UI_URL` và `UI_URL:UI_PORT` trả 403. URL không ghi cổng cho phép trình duyệt gửi `Origin` HTTPS với cổng mặc định 443. Chạy kiểm tra bằng `.venv\Scripts\python -m unittest -v test_app`. Giữ `BACKEND_HOST` trên loopback khi chạy cục bộ; nếu mở ra mạng công cộng, cần lớp bảo vệ truy cập riêng.
 
 Checkpoint keypoint ghi giấy phép [Apache-2.0](https://huggingface.co/PrasannaBAImodel/license-plate-keypoint-detection), nhưng model nền Ultralytics được ghi là AGPL-3.0 trong thẻ model: cần xem lại điều kiện cấp phép trước khi phân phối. Hiệu năng trên biển Việt Nam chưa được xác nhận bằng bộ kiểm thử riêng.
 

@@ -10,7 +10,7 @@ import numpy as np
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
-from app import app
+from app import UI_URL, app
 
 
 def pose_result(boxes, corners, visibility):
@@ -83,6 +83,14 @@ class DetectApiTests(unittest.TestCase):
             },
         )
         self.assertEqual(response.status_code, 413)
+
+    def test_accepts_configured_origin_without_explicit_port(self):
+        response = self.client.post(
+            "/api/v1/ocr/detect",
+            files={"file": ("scene.txt", b"not an image", "text/plain")},
+            headers={"Origin": UI_URL},
+        )
+        self.assertEqual(response.status_code, 415)
 
     def test_rejects_origin_matching_spoofed_host(self):
         image = io.BytesIO()
