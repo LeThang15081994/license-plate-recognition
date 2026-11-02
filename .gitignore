@@ -1,0 +1,5 @@
+# Model weights — downloaded from Hugging Face; individual files exceed
+# GitHub's 100 MB limit and are not versioned here.
+# See models/v11/README.md for download instructions.
+models/v11/*.pt
+models/v11/*.onnx
